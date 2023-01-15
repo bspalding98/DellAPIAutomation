@@ -14,40 +14,7 @@ var clientSecret = "";
 // This uses 0Auth, an authentication method which uses bearer tokens to create sessions if successfully from handshake.
 // This will allow the program to only have to ask for access the first time of the session.
 // It then retrieves the device information based on a device service tag
-function getDellWarranty(serviceTag) {
 
-  var cache = CacheService.getDocumentCache();
-  var bearerToken = cache.get("dell_access_token");
-
-  // If the bearer token has not been previously set, request a new one
-  if(!bearerToken) {
-  
-    //auth and get our token thing
-    var options = {
-      'method' : 'post',
-      'payload' : {
-        'client_id': clientId,
-        'client_secret': clientSecret,
-        'grant_type': 'client_credentials'
-      }
-    };
-    var authenticationResponseHttp = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/auth/oauth/v2/token", options);
-    var authenticationResponse = JSON.parse(authenticationResponseHttp);
-  
-    //store the access token (bearer token) in the cache for the duration that it is valid - a bit
-    cache.put("dell_access_token", authenticationResponse.access_token, authenticationResponse.expires_in / 2);
-    bearerToken = authenticationResponse.access_token;
-  }
-  
-  // to use bearer token to retrieve warranty through the production endpoint url.
-  var getOptions = {
-    'method': 'get',
-    'headers' : {
-      'Authorization': 'Bearer ' + bearerToken,
-    }
-  };
-  
-  
   function getDellWarranty(serviceTag) {
 
   var cache = CacheService.getDocumentCache();
