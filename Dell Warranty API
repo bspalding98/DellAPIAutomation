@@ -11,6 +11,31 @@ var clientId = "";
 var clientSecret = ""; 
 
 
+// Function checks the entire sheets current warranties and also devices and stores them to compare what is missing
+  function fullSheetCheck()
+  {
+    dwws.getRange(8, 8).setValue("Running");
+
+    var allDevices = [];
+    var dellWarrDevices = [];
+    var serviceTag;
+
+  // For loop to get the Dell Servicetags for "All Devices" and also for "Dell Warr API" sheet to compare if any new ones have been added
+  // Make sure simplier
+    for(var y = 2; y < dwws.getLastRow()+1; y++)
+    {
+      serviceTag = dwws.getRange(y,helperColumn).getValue();
+      allDevices.push(serviceTag);
+
+      if(dwws.getRange(y,1).getValue() != "") // This was still grabbing empty cells if I had text in F column maybe??
+      {
+        serviceTag = dwws.getRange(y,1).getValue();
+        dellWarrDevices.push(serviceTag);
+      }
+    }
+  }
+
+
 // This uses 0Auth, an authentication method which uses bearer tokens to create sessions if successfully from handshake.
 // This will allow the program to only have to ask for access the first time of the session.
 // It then retrieves the device information based on a device service tag
