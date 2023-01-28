@@ -1,15 +1,10 @@
-//TODO
-// Get data into json and then list
-// Sort warranty
-// print warranties
-// check for added warranties daily and append to bottom of the list
-// Overwrite warranties weekly incase extended warranty is purchased.
+// There are the API keys purchased from Dell in order to do the Authentication and gain access to their database
+const clientId = "xxxxxxxxxxxxx";
+const clientSecret = "xxxxxxxxxxxx"; 
 
-
-// The two variables contain our keys to get access to Dell Warranty and therefore in github will be let as blank. This key was simply purhcased from Dell
-var clientId = "";
-var clientSecret = ""; 
-
+const ss = SpreadsheetApp.getActiveSpreadsheet();
+const dwws = ss.getSheetByName("Dell Warr API");
+const helperColumn = 9;
 
 
 // This function is connected to the daily trigger which means it will run each day
@@ -49,13 +44,30 @@ var clientSecret = "";
     }
   }
   
+    function weeklymain()
+  {
+    // Need to insert extra rows so when I delete rows there is still enough or it breaks the sheet.
+    dwws.insertRowsAfter(dwws.getLastRow()+1, dwws.getLastRow()+1); // amount of rows inserts is the length of the queried dell service tags + 1 to ensure there is always enough
+    dwws.deleteRows(2,dwws.getLastRow()+1); // Wipes sheet so can overwrite with fresh data
+
+    // Had to add this in order to pause between the lines above and below. This prevents an issue where their is a delay in the query regenerating results after deleting the entire sheets data
+    Utilities.sleep(5000);  
+
+    for(var y = 2; y < dwws.getLastRow()+1; y++)
+    {
+      serviceTag = dwws.getRange(y,helperColumn).getValue(); // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
+      dwws.getRange(y,1).setValue(serviceTag);
+      updateRow(y);
+    }
+  }
+  
   
 // input warranty information if the row is empty. If it is not empty, do nothing
 function updateRow(rowIndex)
 {
   if(dwws.getRange(rowIndex,2).getValue() == "")
   {
-    var serviceTag = dwws.getRange(rowIndex,1).getValue().toString();
+    var serviceTag = dwws.getRange(rowIndex,helperColumn).getValue().toString(); // gets serial number from helper column as they should be on the same line
     var deviceInformation = getDellWarranty(serviceTag);
     
     // figure out how to oneline this in javascript
@@ -150,6 +162,9 @@ function updateRow(rowIndex)
   if(warranty.basicWarranty == '1970-01-01T00:00:00') warranty.basicWarranty = 'NIL';
   if(warranty.adpWarranty == '1970-01-01T00:00:00') warranty.adpWarranty = 'NIL';
   if(warranty.batteryWarranty == '1970-01-01T00:00:00') warranty.batteryWarranty = 'NIL';
+  
+   //essentially error handling incase information is null since we substring it
+  if(warranty.shipDate == null) warranty.shipDate = 'NIL';
 
   // create an array to store information needed for the spreadsheet and return it so it can be used elsewhere
   var returnArray = [];
