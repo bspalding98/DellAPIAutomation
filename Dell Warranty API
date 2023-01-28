@@ -107,13 +107,42 @@ function updateDeviceRowInformation(rowIndex)
   var jsondata = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=" + serviceTag, getOptions);
   var apiResponse = JSON.parse(jsondata);
   var warranties = apiResponse[0].entitlements; // list
-  var warranty = {productDescription:apiResponse[0].productLineDescription, endDate:'1970-01-01T00:00:00', lobCategory:apiResponse[0].productLobDescription, shipDate:apiResponse[0].shipDate};
- 
-  // Checks for the latest warranty
-  for(var index=0; index < warranties.length; ++index) {
-    if(warranties[index].endDate >= warranty.endDate) {
-        warranty.endDate = warranties[index].endDate;
+  
+  var warranty = {
+    productDescription:   apiResponse[0].productLineDescription,
+    basicWarranty:        '1970-01-01T00:00:00',
+    lobCategory:          apiResponse[0].productLobDescription, 
+    shipDate:             apiResponse[0].shipDate,
+    adpWarranty:          '1970-01-01T00:00:00',
+    batteryWarranty:      '1970-01-01T00:00:00'
+  };
+
+
+  // Find warranty for basic, ADP, and Battery
+  for(var index=0; index < warranties.length; ++index) 
+  {
+    //Basic
+    if( warranties[index].endDate > warranty.basicWarranty && 
+      (warranties[index].serviceLevelDescription.indexOf('ProSupport') > -1 || warranties[index].serviceLevelDescription.indexOf('Next Business') >-1))
+    {
+      warranty.basicWarranty = warranties[index].endDate;
+      // console.log(warranties[index].serviceLevelDescription + warranty.basicWarranty);
     }
+
+    // ADP
+    if( warranties[index].endDate > warranty.adpWarranty && warranties[index].serviceLevelDescription.indexOf('Accident') > -1)
+    {
+      warranty.adpWarranty = warranties[index].endDate;
+      // console.log(warranties[index].serviceLevelDescription + warranty.basicWarranty);
+    }
+
+    // Battery
+    if( warranties[index].endDate > warranty.batteryWarranty && warranties[index].serviceLevelDescription.indexOf('Battery') > -1)
+    {
+      warranty.batteryWarranty = warranties[index].endDate;
+      // console.log(warranties[index].serviceLevelDescription + warranty.batteryWarranty);
+    }
+
   }
 
   // If warranty doesn't exists. Changes value to state and also push list to array to be printed out
