@@ -1,3 +1,21 @@
+/*
+This is the code to automate the Dell Warranty API. Not code here should need to be altered and not manually executions are needed
+There are two automated triggers created to execute the code:
+1. Daily Trigger - This runs every day between 5am and 6am and calls function dailyMain()
+  This functions purpose is to append dell warranty information to the bottom of the spreadsheet for devices that have no information currently (newly added devices)
+2. Weekly Trigger - This runs once a week on a Monday between 1am and 2am and calls function weeklyMain()
+  This functions purpose is to overwrite all data and repopulate it. This is done so all warranty is accurate in case extended or new warranty is purchased
+
+NOTE: The Queried Serial column on the right is a helper column. It has pre-queried all Dell devices in the asset register to save computing time.
+
+ISSUES:
+Errors in code - The only errors occuring should hopefully be issues on Dells side from testing. If an error is thrown it will just execute the next day so no worry
+  If errors become frequent error handling can be easier implemented
+Queried Serial Numbers missing Dell Devices - This issue will be with the query itself not the code here. It queries "TCE Supplied Device - BackEnd" Google Sheet.
+  It has to filter for only Dell devices, however there are issues where some serial numbers have blank information usually because they have never been turned on for CompInfo to pull 
+  the devices information. So tweaking on the query may be needed overtime to include all devices or there needs Glenn needs to fix All Devices sheet (wouldn't be too hard).
+*/
+
 // These are the API keys purchased from Dell in order to do the OAuth2 (Authentication) and gain access to their database
 const clientId = "xxxxxxxxxxxxx";
 const clientSecret = "xxxxxxxxxxxx"; 
