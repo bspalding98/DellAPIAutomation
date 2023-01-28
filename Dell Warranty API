@@ -145,17 +145,20 @@ function updateDeviceRowInformation(rowIndex)
 
   }
 
-  // If warranty doesn't exists. Changes value to state and also push list to array to be printed out
-  var returnValue = [];
-  if(warranty.endDate == '1970-01-01T00:00:00')
-  { 
-    warranty.endDate = 'Has never had Warranty'
-    returnValue.push([warranty.productDescription], [warranty.lobCategory], [warranty.shipDate], [warranty.endDate]);
-  }
-  else
-  { 
-    returnValue.push([warranty.productDescription], [warranty.lobCategory], [warranty.shipDate], [warranty.endDate.substring(0,10)]);
-  }
+  // Check if warranty still equals default date. If so, that means there is not any warranty for it
+  if(warranty.basicWarranty == '1970-01-01T00:00:00') warranty.basicWarranty = 'There is no warranty for this';
+  if(warranty.adpWarranty == '1970-01-01T00:00:00') warranty.adpWarranty = 'There is no warranty for this';
+  if(warranty.batteryWarranty == '1970-01-01T00:00:00') warranty.basicWarranty = 'There is no warranty for this';
 
-  return returnValue;
+  // create an array to store information needed for the spreadsheet and return it so it can be used elsewhere
+  var returnArray = [];
+  returnArray.push(
+    [warranty.productDescription],
+    [warranty.lobCategory],
+    [warranty.shipDate],
+    [warranty.basicWarranty.substring(0,10)],
+    [warranty.adpWarranty.substring(0,10)],
+    [warranty.batteryWarranty.substring(0,10)]
+  );
+  return returnArray;
 }
