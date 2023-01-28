@@ -51,7 +51,7 @@ const helperColumn = 9;
     dwws.deleteRows(2,dwws.getLastRow()+1); // Wipes sheet so can overwrite with fresh data
 
     // Had to add this in order to pause between the lines above and below. This prevents an issue where their is a delay in the query regenerating results after deleting the entire sheets data
-    Utilities.sleep(5000);  
+    Utilities.sleep(15000);  
 
     for(var y = 2; y < dwws.getLastRow()+1; y++)
     {
