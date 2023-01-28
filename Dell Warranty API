@@ -33,6 +33,19 @@ var clientSecret = "";
         dellWarrDevices.push(serviceTag);
       }
     }
+    
+   // If a Servicetag from "All Devices" sheet is not in "Dell Warr API" Sheet. Add it to the bottom
+    for(var y = 0; y < allDevices.length; y++)
+    {
+      if(!dellWarrDevices.includes(allDevices[y]))
+      {
+        dellWarrDevices.push(allDevices[y]);
+        dwws.getRange((dellWarrDevices.length + 1),1).setValue(allDevices[y]); // Can remove this line
+        updateDeviceRowInformation(dellWarrDevices.length + 1);
+      }
+    }
+
+    dwws.getRange(8, 8).setValue("Finished!");
   }
 
 
