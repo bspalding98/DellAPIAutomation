@@ -1,100 +1,59 @@
-// There are the API keys purchased from Dell in order to do the Authentication and gain access to their database
+// These are the API keys purchased from Dell in order to do the OAuth2 (Authentication) and gain access to their database
 const clientId = "xxxxxxxxxxxxx";
 const clientSecret = "xxxxxxxxxxxx"; 
 
 const ss = SpreadsheetApp.getActiveSpreadsheet();
 const dwws = ss.getSheetByName("Dell Warr API");
-const helperColumn = 9;
+const helperColumn = 9; // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
+const lastRow = dwws.getLastRow();
 
 
 // This function is connected to the daily trigger which means it will run each day
-// The purpose of the function is to compare the current warrantied devices that are in the spreadsheet
-// again all Dell Devices and if any are missing it will append the warranty to the bottom
-  function dailyMain()
-  {
-    var allDevices = [];
-    var dellWarrDevices = [];
-    var serviceTag;
-
-  // For loop to get the Dell Servicetags for "All Devices" and also for "Dell Warr API" sheet to later compare if any new ones have been added
-    for(var y = 2; y < dwws.getLastRow()+1; y++)
-    {
-      serviceTag = dwws.getRange(y,helperColumn).getValue(); // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
-      allDevices.push(serviceTag);
-
-      // If Serial Number is there, add it to the DellWarrDevices Array
-      if(dwws.getRange(y,1).getValue() != "")
-      {
-        serviceTag = dwws.getRange(y,1).getValue();
-        dellWarrDevices.push(serviceTag);
-      }
-    }
-    
-  // If Servicetag from "All Devices" sheet is not in "Dell Warr API" Sheet (used by copmparing Arrays). 
-  // Add it to the bottom of the sheet.
-    for(var y = 0; y < allDevices.length; y++)
-    {
-      // If dellWarrDevices Array doesn't have this [y] serial number in allDevices, append it to the bottom of the sheet
-      if(!dellWarrDevices.includes(allDevices[y]))
-      {
-        dellWarrDevices.push(allDevices[y]);
-        dwws.getRange((dellWarrDevices.length + 1),1).setValue(allDevices[y]); // Set Serial Number
-        updateRow(dellWarrDevices.length + 1);
-      }
-    }
+// The purpose of the function is to append dell warranty information to the bottom of the spreadsheet for devices that have no information currently
+function dailyMain(){
+  // Get Length of A column which will get the length of warranty information we already have
+  let aColLast = ss.getRange("A1:A").getValues().filter(String).length;
+  let missingDellWarranty = lastRow - aColLast;
+   
+  // For loop to populate dell warranty for devices that have not been entered yet
+  for(let y = 0; y < missingDellWarranty; y++){
+    updateRow(aColLast + 1);
+    aColLast ++;
   }
-  
-    function weeklymain()
-  {
-    // Need to insert extra rows so when I delete rows there is still enough or it breaks the sheet.
-    dwws.insertRowsAfter(dwws.getLastRow()+1, dwws.getLastRow()+1); // amount of rows inserts is the length of the queried dell service tags + 1 to ensure there is always enough
-    dwws.deleteRows(2,dwws.getLastRow()+1); // Wipes sheet so can overwrite with fresh data
+}
 
-    // Had to add this in order to pause between the lines above and below. This prevents an issue where their is a delay in the query regenerating results after deleting the entire sheets data
-    Utilities.sleep(15000);  
+// This function is connected to the weekly trigger which means it will run once a week
+// The purpose of the function is to overwrite all data and repopulate it. This is done so all warranty is accurate in case extended or new warranty is purchased   
+function weeklymain(){
+  // Clears all contents of Dell Warranty Data
+  dwws.getRange(2,1,lastRow,7).clearContent();
 
-    for(var y = 2; y < dwws.getLastRow()+1; y++)
-    {
-      serviceTag = dwws.getRange(y,helperColumn).getValue(); // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
-      dwws.getRange(y,1).setValue(serviceTag);
-      updateRow(y);
-    }
-  }
+  // For loop populates Dell Warranty Information
+  for(let y = 2; y < lastRow+1; y++) updateRow(y);
+}
   
   
-// input warranty information if the row is empty. If it is not empty, do nothing
-function updateRow(rowIndex)
-{
-  if(dwws.getRange(rowIndex,2).getValue() == "")
-  {
-    var serviceTag = dwws.getRange(rowIndex,helperColumn).getValue().toString(); // gets serial number from helper column as they should be on the same line
-    var deviceInformation = getDellWarranty(serviceTag);
-    
-    // figure out how to oneline this in javascript
-    dwws.getRange(rowIndex, 2).setValue(deviceInformation[0]), // Product Description
-    dwws.getRange(rowIndex, 3).setValue(deviceInformation[1]), // Lob Category
-    dwws.getRange(rowIndex, 4).setValue(deviceInformation[2]), // Ship Date
-    dwws.getRange(rowIndex, 5).setValue(deviceInformation[3]); // Basic Warranty
-    dwws.getRange(rowIndex, 6).setValue(deviceInformation[4]); // ADP Warranty
-    dwws.getRange(rowIndex, 7).setValue(deviceInformation[5]); // Battery Warranty
-  }
+// input warranty information in each row
+function updateRow(rowIndex){
+  let serviceTag = dwws.getRange(rowIndex,helperColumn).getValue().toString();
+  let deviceInformation = getDellWarranty(serviceTag, get0Auth());
+
+  dwws.getRange(rowIndex,1,1,7).setValues(deviceInformation); // populates entire row with warranty information for that service tag
 }
 
 
 // This uses 0Auth, an authentication method which uses bearer tokens to create sessions if successfully from handshake.
 // This will allow the program to only have to ask for access the first time of the session.
 // It then retrieves the device information based on a device service tag
-
-  function getDellWarranty(serviceTag) {
-
-  var cache = CacheService.getDocumentCache();
-  var bearerToken = cache.get("dell_access_token");
+function get0Auth(){
+  let cache = CacheService.getDocumentCache();
+  let bearerToken = cache.get("dell_access_token");
 
   // If the bearer token has not been previously set, request a new one
   if(!bearerToken) {
   
     //auth and get our token thing
-    var options = {
+    let options = {
       'method' : 'post',
       'payload' : {
         'client_id': clientId,
@@ -102,8 +61,8 @@ function updateRow(rowIndex)
         'grant_type': 'client_credentials'
       }
     };
-    var authenticationResponseHttp = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/auth/oauth/v2/token", options);
-    var authenticationResponse = JSON.parse(authenticationResponseHttp);
+    let authenticationResponseHttp = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/auth/oauth/v2/token", options);
+    let authenticationResponse = JSON.parse(authenticationResponseHttp);
   
     //store the access token (bearer token) in the cache for the duration that it is valid - a bit
     cache.put("dell_access_token", authenticationResponse.access_token, authenticationResponse.expires_in / 2);
@@ -111,70 +70,72 @@ function updateRow(rowIndex)
   }
   
   // to use bearer token to retrieve warranty through the production endpoint url.
-  var getOptions = {
+  let getOptions = {
     'method': 'get',
     'headers' : {
       'Authorization': 'Bearer ' + bearerToken,
     }
   };
-
-  // This should really be done as a bulk request but due to limited timeframe just doing as a request by request basis. - FIX THIS? - Might not as doing bulk still need to loop anyways. Not sure.
-  var jsondata = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=" + serviceTag, getOptions);
-  var apiResponse = JSON.parse(jsondata);
-  var warranties = apiResponse[0].entitlements; // This is each warranty type for the servicetag stored in a list
   
-  var warranty = {
+  return getOptions;
+}
+
+
+function getDellWarranty(serviceTag, getOptions){
+  // retrieves json data from production endpoint URL
+  let jsondata = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=" + serviceTag, getOptions);
+  let apiResponse = JSON.parse(jsondata);
+  let warranties = apiResponse[0].entitlements; // This is each warranty type for the servicetag stored in a list
+  
+  let warranty = {
     adpWarranty:          '1970-01-01T00:00:00',
-    batteryWarranty:      '1970-01-01T00:00:00',
     basicWarranty:        '1970-01-01T00:00:00',
+    batteryWarranty:      '1970-01-01T00:00:00',
     shipDate:             apiResponse[0].shipDate,
+    serviceTag:           apiResponse[0].serviceTag,
     lobCategory:          apiResponse[0].productLobDescription,
     productDescription:   apiResponse[0].productLineDescription
   };
 
 
   // Find warranty for basic, ADP, and Battery
-  for(var index=0; index < warranties.length; ++index) 
+  for(let index=0; index < warranties.length; ++index) 
   {
     //Basic
     if( warranties[index].endDate > warranty.basicWarranty && 
       (warranties[index].serviceLevelDescription.indexOf('ProSupport') > -1 || warranties[index].serviceLevelDescription.indexOf('Next Business') >-1))
-    {
-      warranty.basicWarranty = warranties[index].endDate;
-    }
+    warranty.basicWarranty = warranties[index].endDate;
 
-    // ADP
-    if( warranties[index].endDate > warranty.adpWarranty && warranties[index].serviceLevelDescription.indexOf('Accident') > -1)
-    {
-      warranty.adpWarranty = warranties[index].endDate;
-    }
+    // ADP (Accidental Damage Protection)
+    else if( warranties[index].endDate > warranty.adpWarranty && warranties[index].serviceLevelDescription.indexOf('Accident') > -1)warranty.adpWarranty = warranties[index].endDate;
 
     // Battery
-    if( warranties[index].endDate > warranty.batteryWarranty && warranties[index].serviceLevelDescription.indexOf('Battery') > -1)
-    {
-      warranty.batteryWarranty = warranties[index].endDate;
-    }
-
+    else if( warranties[index].endDate > warranty.batteryWarranty && warranties[index].serviceLevelDescription.indexOf('Battery') > -1) warranty.batteryWarranty = warranties[index].endDate;
   }
 
   // Check if warranty still equals default date. If so, that means there is not any warranty for it
-    // NOTE: If message if changed be careful some doesn't get cut off with substrings down the bottom 
+  // NOTE: If message if changed be careful some doesn't get cut off with substrings down the bottom 
   if(warranty.basicWarranty == '1970-01-01T00:00:00') warranty.basicWarranty = 'NIL';
   if(warranty.adpWarranty == '1970-01-01T00:00:00') warranty.adpWarranty = 'NIL';
   if(warranty.batteryWarranty == '1970-01-01T00:00:00') warranty.batteryWarranty = 'NIL';
   
    //essentially error handling incase information is null since we substring it
   if(warranty.shipDate == null) warranty.shipDate = 'NIL';
+  if(warranty.lobCategory == null) warranty.lobCategory = 'NIL';
+  if(warranty.productDescription == null) warranty.productDescription = 'NIL';
 
   // create an array to store information needed for the spreadsheet and return it so it can be used elsewhere
   var returnArray = [];
   returnArray.push(
-    [warranty.productDescription],
-    [warranty.lobCategory],
-    [warranty.shipDate.substring(0,10)],
-    [warranty.basicWarranty.substring(0,10)],
-    [warranty.adpWarranty.substring(0,10)],
-    [warranty.batteryWarranty.substring(0,10)]
+    [
+      warranty.serviceTag,
+      warranty.productDescription,
+      warranty.lobCategory,
+      warranty.shipDate.substring(0,10),
+      warranty.basicWarranty.substring(0,10),
+      warranty.adpWarranty.substring(0,10),
+      warranty.batteryWarranty.substring(0,10)
+    ]
   );
   return returnArray;
 }
