@@ -47,6 +47,23 @@ var clientSecret = "";
 
     dwws.getRange(8, 8).setValue("Finished!");
   }
+  
+  
+  // Get device information for a single row
+function updateDeviceRowInformation(rowIndex)
+{
+  if(dwws.getRange(rowIndex,2).getValue() == "")
+  {
+    var serviceTag = dwws.getRange(rowIndex,1).getValue().toString();
+    var deviceInformation = getDellWarranty(serviceTag);
+    
+    // figure out how to oneline this in javascript
+    dwws.getRange(rowIndex, 2).setValue(deviceInformation[0]),
+    dwws.getRange(rowIndex, 3).setValue(deviceInformation[1]),
+    dwws.getRange(rowIndex, 4).setValue(deviceInformation[2]),
+    dwws.getRange(rowIndex, 5).setValue(deviceInformation[3]);
+  }
+}
 
 
 // This uses 0Auth, an authentication method which uses bearer tokens to create sessions if successfully from handshake.
