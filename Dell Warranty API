@@ -41,7 +41,7 @@ var clientSecret = "";
       {
         dellWarrDevices.push(allDevices[y]);
         dwws.getRange((dellWarrDevices.length + 1),1).setValue(allDevices[y]); // Can remove this line
-        updateDeviceRowInformation(dellWarrDevices.length + 1);
+        updateRow(dellWarrDevices.length + 1);
       }
     }
 
@@ -49,8 +49,8 @@ var clientSecret = "";
   }
   
   
-  // Get device information for a single row
-function updateDeviceRowInformation(rowIndex)
+// input warranty information if the row is empty. If it is not empty, do nothing
+function updateRow(rowIndex)
 {
   if(dwws.getRange(rowIndex,2).getValue() == "")
   {
@@ -58,10 +58,12 @@ function updateDeviceRowInformation(rowIndex)
     var deviceInformation = getDellWarranty(serviceTag);
     
     // figure out how to oneline this in javascript
-    dwws.getRange(rowIndex, 2).setValue(deviceInformation[0]),
-    dwws.getRange(rowIndex, 3).setValue(deviceInformation[1]),
-    dwws.getRange(rowIndex, 4).setValue(deviceInformation[2]),
-    dwws.getRange(rowIndex, 5).setValue(deviceInformation[3]);
+    dwws.getRange(rowIndex, 2).setValue(deviceInformation[0]), // Product Description
+    dwws.getRange(rowIndex, 3).setValue(deviceInformation[1]), // Lob Category
+    dwws.getRange(rowIndex, 4).setValue(deviceInformation[2]), // Ship Date
+    dwws.getRange(rowIndex, 5).setValue(deviceInformation[3]); // Basic Warranty
+    dwws.getRange(rowIndex, 5).setValue(deviceInformation[4]); // ADP Warranty
+    dwws.getRange(rowIndex, 5).setValue(deviceInformation[5]); // Battery Warranty
   }
 }
 
