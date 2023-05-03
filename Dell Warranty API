@@ -1,11 +1,8 @@
 /*
 This is the code to automate the Dell Warranty API. Not code here should need to be altered and not manually executions are needed
 The offical backend sheet imports the data from this sheet using ImportRange(). With that it will update live when the spreadsheet is altered
-There are two automated triggers created to execute the code:
-1. Daily Trigger - This runs every day between 5am and 6am and calls function dailyMain()
-  This functions purpose is to append dell warranty information to the bottom of the spreadsheet for devices that have no information currently (newly added devices)
-2. Weekly Trigger - This runs once a week on a Monday between 1am and 2am and calls function weeklyMain()
-  This functions purpose is to overwrite all data and repopulate it. This is done so all warranty is accurate in case extended or new warranty is purchased
+Automation works by running main(). It clears the whole sheet everyday and then populates it again. The reason for this is that new and/or extended warranty 
+can be purchased and this will keep the information up to date and accurate.
 
 NOTE: The Queried Serial column on the right is a helper column. It has pre-queried all Dell devices in the asset register to save computing time.
 NOTE: There is also always the potential that some warranty is missing or not entirely accurate (it would be quite rare if at all). This is due to some device models having the same warranty
@@ -16,73 +13,46 @@ Errors in code - The only errors occuring should hopefully be issues on Dells si
   If errors become frequent error handling can be easier implemented
 Queried Serial Numbers missing Dell Devices - This issue will be with the query itself not the code here. It queries "TCE Supplied Device - BackEnd" All Devices Google Sheet.
   It has to filter for only Dell devices, however there are issues where some serial numbers have blank information usually because they have never been turned on for CompInfo to pull 
-  the devices information. So tweaking on the query may be needed overtime to include all devices or there needs Glenn needs to fix All Devices sheet (wouldn't be too hard).
-Queried Serial Numbers are doubled up - This would most certainly be due to the "TCE Supplied Device - BackEnd" All Devices google sheet. It most likely has 2 records
+  the devices information. So tweaking on the query maybe needed overtime to include those devices that are blank and then a try and catch loop to see if they are dell devices (wouldn't be too hard).
+Queried Serial Numbers are doubled up - This would most certainly be due to the "TCE Supplied Device - BackEnd" All Devices google sheet. It most likely has 2 records and one just needs to be remove
 */
 
 // These are the API keys purchased from Dell in order to do the OAuth2 (Authentication) and gain access to their database
-const clientId = "xxxxxxxxxxxxx";
-const clientSecret = "xxxxxxxxxxxx"; 
+const CLIENT_ID = "xxxxxxxxxxxxx";
+const CLIENT_SECRET = "xxxxxxxxxxxx"; 
 
-const ss = SpreadsheetApp.getActiveSpreadsheet();
-const dwws = ss.getSheetByName("Dell Warr API");
-const helperColumn = 9; // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
-const lastRow = dwws.getLastRow();
+const ACCESS_TOKEN_URL = "https://apigtwb2c.us.dell.com/auth/oauth/v2/token";
+const PRODUCTION_ENDPOINT_URL = "https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=";
+const SS = SpreadsheetApp.getActiveSpreadsheet();
+const DWWS = ss.getSheetByName("Dell Warr API");
+const HELPER_COLUMN = 9; // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
+const LAST_ROW = dwws.getLastRow();
 
 
 // This function is connected to the daily trigger which means it will run each day
 // The purpose of the function is to append dell warranty information to the bottom of the spreadsheet for devices that have no information currently (newly added devices)
 // NOTE: This functions is pretty ugly and big but needs to be done this way just to query issues from all devices sheet
-function dailyMain(){
-  let allDevices = [];
-  let dellWarrDevices = [];
-  // Get Length of A column which will get the length of warranty information we already have
-  let aColLast = ss.getRange("A1:A").getValues().filter(String).length;
-
- // For loop to get the Dell Servicetags for "All Devices" and also for "Dell Warr API" sheet to later compare if any new ones have been added
-    for(let y = 2; y < lastRow; y++){
-      serviceTag = dwws.getRange(y,helperColumn).getValue(); // This is the column on the spreadsheet that has pre-queried all Dell devices in the asset register to save computing time
-      allDevices.push(serviceTag);
-      // If Serial Number is there, add it to the DellWarrDevices Array
-      if(dwws.getRange(y,1).getValue() != ""){
-        serviceTag = dwws.getRange(y,1).getValue();
-        dellWarrDevices.push(serviceTag);
-      }
-    }
-
-  // If Servicetag from "All Devices" sheet is not in "Dell Warr API" Sheet (used by copmparing Arrays). 
-  // Add it to the bottom of the sheet.
-    for(let y = 0; y < allDevices.length; y++){
-      // If dellWarrDevices Array doesn't have this [y] serial number, append it to the bottom of the sheet
-      if(!dellWarrDevices.includes(allDevices[y])){
-        dellWarrDevices.push(allDevices[y]);
-        dwws.getRange((dellWarrDevices.length + 1),1).setValue(allDevices[y]); // Set Serial Number
-        updateRow(dellWarrDevices.length + 1);
-      }
-    }
-}
-
-// This function is connected to the weekly trigger which means it will run once a week
+// This is the main function which is where everything runs from. This runs daily through the trigger
 // The purpose of the function is to overwrite all data and repopulate it. This is done so all warranty is accurate in case extended or new warranty is purchased 
-function weeklyMain(){
+function main(){
   // Clears all contents of Dell Warranty Data
-  dwws.getRange(2,1,lastRow,7).clearContent();
+  DWWS.getRange(2,1,LAST_ROW,7).clearContent();
 
   // For loop populates Dell Warranty Information
-  for(let y = 2; y < lastRow; y++) {
-    let serviceTag = dwws.getRange(y,helperColumn).getValue();
-    dwws.getRange((y),1).setValue(serviceTag); // Set Serial Number
-    updateRow(y);
+  for(let y = 2; y < LAST_ROW +1; y++){
+    let serviceTag = DWWS.getRange(y,HELPER_COLUMN).getValue(); // gets the serial number
+    let getter = get0Auth();  // ensure authentication is still there and returns getter
+    updateRow(y, serviceTag, getter);
   }
 }
-  
-  
+   
 // input warranty information in each row
-function updateRow(rowIndex){
-  let serviceTag = dwws.getRange(rowIndex, 1).getValue().toString();
-  let deviceInformation = getDellWarranty(serviceTag, get0Auth());
-
-  dwws.getRange(rowIndex,2,1,6).setValues(deviceInformation); // populates entire row with warranty information for that service tag
+function updateRow(rowIndex, serviceTag, getter){
+  // put in try and catch loop to check service tags that aren't dell because of the issue with Glenn's backend spreadsheet
+  try{
+    let deviceInformation = getDellWarranty(serviceTag, getter);
+    DWWS.getRange(rowIndex,1,1,7).setValues(deviceInformation); // populates entire row with warranty information for that service tag
+  } catch (error) {}
 }
 
 
@@ -100,35 +70,45 @@ function get0Auth(){
     let options = {
       'method' : 'post',
       'payload' : {
-        'client_id': clientId,
-        'client_secret': clientSecret,
+        'client_id': CLIENT_ID,
+        'client_secret': CLIENT_SECRET,
         'grant_type': 'client_credentials'
       }
     };
-    let authenticationResponseHttp = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/auth/oauth/v2/token", options);
+    let authenticationResponseHttp = UrlFetchApp.fetch(ACCESS_TOKEN_URL, options);
     let authenticationResponse = JSON.parse(authenticationResponseHttp);
   
     //store the access token (bearer token) in the cache for the duration that it is valid - a bit
     cache.put("dell_access_token", authenticationResponse.access_token, authenticationResponse.expires_in / 2);
     bearerToken = authenticationResponse.access_token;
   }
+  // For Debugging:
+  //let bearertokenLog = console.log(bearerToken)
   
   // to use bearer token to retrieve warranty through the production endpoint url.
-  let getOptions = {
+  let getter = {
     'method': 'get',
+    'contentType' : 'text/json',
     'headers' : {
       'Authorization': 'Bearer ' + bearerToken,
-    }
+    },
+    muteHttpExceptions: true
   };
   
-  return getOptions;
+  return getter;
 }
 
 
-function getDellWarranty(serviceTag, getOptions){
+// This retrieves the dell warranty for the servicetag used and returns the device information that will be used to populate the spreadsheet
+function getDellWarranty(serviceTag, getter){
   // retrieves json data from production endpoint URL
-  let jsondata = UrlFetchApp.fetch("https://apigtwb2c.us.dell.com/PROD/sbil/eapi/v5/asset-entitlements?servicetags=" + serviceTag, getOptions);
-  let apiResponse = JSON.parse(jsondata);
+  let jsondata = UrlFetchApp.fetch(PRODUCTION_ENDPOINT_URL + serviceTag, getter);
+
+  // For Debugging:
+  //let responseCode = console.log(jsondata.getResponseCode())
+  //console.log(jsondata.getContentText())
+
+  let apiResponse = JSON.parse(jsondata.getContentText());
   let warranties = apiResponse[0].entitlements; // This is each warranty type for the servicetag stored in a list
   
   let warranty = {
@@ -136,6 +116,7 @@ function getDellWarranty(serviceTag, getOptions){
     basicWarranty:        '1970-01-01T00:00:00',
     batteryWarranty:      '1970-01-01T00:00:00',
     shipDate:             apiResponse[0].shipDate,
+    serviceTag:           apiResponse[0].serviceTag,
     lobCategory:          apiResponse[0].productLobDescription,
     productDescription:   apiResponse[0].productLineDescription
   };
@@ -158,9 +139,9 @@ function getDellWarranty(serviceTag, getOptions){
 
   // Check if warranty still equals default date. If so, that means there is not any warranty for it
   // NOTE: If message if changed be careful some doesn't get cut off with substrings down the bottom 
-  if(warranty.basicWarranty == '1970-01-01T00:00:00') warranty.basicWarranty = 'NIL';
-  if(warranty.adpWarranty == '1970-01-01T00:00:00') warranty.adpWarranty = 'NIL';
-  if(warranty.batteryWarranty == '1970-01-01T00:00:00') warranty.batteryWarranty = 'NIL';
+  if(warranty.adpWarranty == '1970-01-01T00:00:00') warranty.adpWarranty = 'N/A';
+  if(warranty.basicWarranty == '1970-01-01T00:00:00') warranty.basicWarranty = 'N/A';
+  if(warranty.batteryWarranty == '1970-01-01T00:00:00') warranty.batteryWarranty = warranty.basicWarranty;
   
    //essentially error handling incase information is null since we substring it
   if(warranty.shipDate == null) warranty.shipDate = 'NIL';
@@ -171,6 +152,7 @@ function getDellWarranty(serviceTag, getOptions){
   var returnArray = [];
   returnArray.push(
     [
+      warranty.serviceTag,
       warranty.productDescription,
       warranty.lobCategory,
       warranty.shipDate.substring(0,10),
